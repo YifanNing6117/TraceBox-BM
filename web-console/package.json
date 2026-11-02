@@ -1,0 +1,13 @@
+{
+  "name": "tracebox-local-console",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Dependency-free localhost control shell for TraceBox-BM",
+  "scripts": {
+    "start": "node server/src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

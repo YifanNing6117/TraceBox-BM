@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>TraceBox 运行黑匣子控制台</title>
+  <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <div class="eyebrow"><span class="pulse-dot"></span> 裸机可恢复事件记录器</div>
+        <h1>TRACEBOX <span>/ 运行黑匣子</span></h1>
+        <p class="lede">三板联调 · SPI2 DMA 事件入口 · READY 背压 · W25Q64 可靠落盘</p>
+      </div>
+      <div class="build-mark">
+        <span>固件版本</span>
+        <strong>V2.0.0</strong>
+        <small>裸机 TraceBox + Mini-DCM 事件源</small>
+      </div>
+    </header>
+
+    <section class="status-strip" aria-label="系统状态">
+      <div class="status-cell">
+        <span>本地服务</span>
+        <strong id="server-status" class="status-value pending">检查中</strong>
+      </div>
+      <div class="status-cell">
+        <span>串口占用</span>
+        <strong id="owner-status" class="status-value">空闲</strong>
+      </div>
+      <div class="status-cell">
+        <span>最近任务</span>
+        <strong id="result-status" class="status-value">—</strong>
+      </div>
+      <div class="status-cell accent-cell">
+        <span>硬件闭环</span>
+        <strong class="status-value pass">已通过</strong>
+      </div>
+    </section>
+
+    <section class="metric-ribbon" aria-label="已验证指标">
+      <article><span>三板事件回归</span><strong>64 / 64</strong><em>提交并回读</em></article>
+      <article><span>中断最长耗时</span><strong>176</strong><em>周期 / 1.05 μs</em></article>
+      <article><span>页缓冲高水位</span><strong>1</strong><em>单信用背压</em></article>
+      <article><span>数据错误</span><strong>0</strong><em>双层 CRC / 序号 / DMA</em></article>
+    </section>
+
+    <div class="workspace-grid">
+      <section class="panel control-panel">
+        <div class="panel-heading">
+          <div><span class="index">01</span><h2>设备控制</h2></div>
+          <button id="refresh-ports" class="text-button" type="button">↻ 扫描串口</button>
+        </div>
+
+        <div class="field-grid">
+          <label>
+            <span>TraceBox 串口</span>
+            <select id="serial-port"><option value="">正在扫描…</option></select>
+          </label>
+          <label>
+            <span>Mini-DCM Tester 串口</span>
+            <select id="tester-port"><option value="">正在扫描…</option></select>
+          </label>
+          <label>
+            <span>事件帧数</span>
+            <div class="input-unit"><input id="frames" type="number" min="2" max="256" value="8"><b>帧</b></div>
+          </label>
+          <label>
+            <span>ADC 记录时长</span>
+            <div class="input-unit"><input id="seconds" type="number" min="1" max="60" value="3"><b>秒</b></div>
+          </label>
+          <label>
+            <span>数据导出波特率</span>
+            <select id="dump-baud">
+              <option value="460800">460800</option>
+              <option value="230400">230400</option>
+              <option value="115200">115200</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="action-group primary-actions">
+          <button class="action primary" data-action="trace-demo" type="button">
+            <span>运行 V2 三板闭环</span><small>预擦除 → UDS 产生日志 → SPI/DMA → Flash → 导出</small>
+          </button>
+          <button class="action primary" data-action="full" type="button">
+            <span>运行 V1 ADC 闭环</span><small>ADC DMA → Flash → 校验与导出</small>
+          </button>
+          <button class="action" data-action="info" type="button">
+            <span>读取设备信息</span><small>时钟 / UID / 固件版本</small>
+          </button>
+          <button class="action" data-action="metrics" type="button">
+            <span>读取运行指标</span><small>高水位 / 错误 / 计数器</small>
+          </button>
+        </div>
+
+        <div class="action-group secondary-actions">
+          <button class="action compact warning" data-action="trace-prepare" type="button">事件区预擦除</button>
+          <button class="action compact" data-action="trace-record" type="button">SPI 事件记录</button>
+          <button class="action compact" data-action="recover" type="button">恢复扫描</button>
+          <button class="action compact" data-action="dump" type="button">导出数据</button>
+          <button class="action compact" data-action="bench" type="button">性能对比</button>
+          <button class="action compact danger" data-action="fault-torn" type="button">残页注入</button>
+        </div>
+
+        <p class="safety-note"><span>!</span> “V2 三板闭环”“V1 ADC 闭环”和“事件区预擦除”会擦除记录区；“残页注入”会故意写入未提交尾页。</p>
+      </section>
+
+      <section class="panel operation-panel">
+        <div class="panel-heading">
+          <div><span class="index">02</span><h2>任务追踪</h2></div>
+          <span id="operation-badge" class="badge idle">空闲</span>
+        </div>
+        <div class="progress-track"><div id="progress-bar"></div></div>
+        <div class="operation-meta">
+          <span id="operation-title">等待操作</span>
+          <span id="operation-progress">0%</span>
+        </div>
+        <pre id="terminal" class="terminal" tabindex="0">TraceBox 本地控制台已就绪。
+硬件断开时仍可查看历史验证证据并运行“性能对比”。</pre>
+      </section>
+    </div>
+
+    <section class="panel evidence-panel">
+      <div class="panel-heading">
+        <div><span class="index">03</span><h2>验证证据库</h2></div>
+        <button id="refresh-artifacts" class="text-button" type="button">↻ 刷新产物</button>
+      </div>
+      <div class="evidence-summary">
+        <div><span>最新页数</span><strong id="metric-pages">6,250</strong></div>
+        <div><span>最新样本</span><strong id="metric-samples">600,000</strong></div>
+        <div><span>最新事件</span><strong id="metric-events">64</strong></div>
+        <div><span>错误计数</span><strong id="metric-errors">0</strong></div>
+        <div><span>缓冲区高水位</span><strong id="metric-hwm">1</strong></div>
+      </div>
+      <div class="benchmark-grid" aria-label="SPI 性能对比">
+        <div class="benchmark-label"><span>SPI 4 KiB 传输</span><strong>轮询 / DMA</strong></div>
+        <div><span>轮询吞吐</span><strong id="bench-polling">149,747 B/s</strong></div>
+        <div><span>DMA 吞吐</span><strong id="bench-dma">164,060 B/s</strong></div>
+        <div><span>DMA 启动开销</span><strong id="bench-start">302 周期</strong></div>
+        <div><span>DMA 前台迭代</span><strong id="bench-foreground">23,881</strong></div>
+      </div>
+      <div class="artifact-table-wrap">
+        <table>
+          <thead><tr><th>文件</th><th>类型</th><th>大小</th><th>时间</th><th></th></tr></thead>
+          <tbody id="artifact-rows"><tr><td colspan="5" class="empty">正在读取本地证据…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      <span>单一串口所有者 · 命令白名单 · 定长二进制导出</span>
+      <span>127.0.0.1:8765</span>
+    </footer>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/src/app.js" defer></script>
+</body>
+</html>
